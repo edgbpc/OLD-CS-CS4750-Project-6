@@ -32,11 +32,18 @@
 
 typedef struct {
 	int delimiter;
-	int frame;
+	int frame[256];
 	int offset;
 
 } PageTable;
 
+typedef struct {
+	int dirty;
+	int reference;
+	int read;
+	int write;
+
+}MemoryBlock;
 
 typedef struct {
 	int page[31];
