@@ -13,12 +13,15 @@ int memoryBlock[256];
 Process *process;
 
 
-void terminateSharedResources();
-static int setperiodic(double sec);
-void convertTime(unsigned int simClock[]);
 int FindIndex(int value);
 int bitVector[18];
 int pidArray[maxProcesses];
+
+//prototypes
+static int setperiodic(double sec);
+void terminateSharedResources();
+void convertTime(unsigned int simClock[]);
+void print_usage();
 
 //record keeping variables
 int numeMemAccessPerSec;
@@ -33,6 +36,7 @@ int main (int argc, char *argv[]) {
 	keySimClock = 59566;
 	keyProcess = 59567;
 
+	int maxProcess = 18; //default
 	int totalProcessesCreated = 0; //keeps track of all processes created	
 	int processLimit = 100; //max number of processes allowed by assignment parameters
 	double terminateTime = 3; //used by setperiodic to terminate program
@@ -82,11 +86,30 @@ int main (int argc, char *argv[]) {
 
 	int line;
 
-//populate number of resources in the resourcTable
+	char option;
+	while ((option = getopt(argc, argv, "s:h")) != -1){
+		switch (option){
+			case 's' : 
+				maxProcess = atoi(optarg);
+				if (maxProcess > 18){
+					printf("max allowed processes is 18.  Setting to max");
+					maxProcess = 18;
+				}
+				break;
+			case 'h': print_usage();
+				exit(0);
+				break;
+			default : print_usage(); 
+				exit(EXIT_FAILURE);
+		}
+	}
+
+printf("Max processes selected was %d\n", maxProcess);
 	int index;
 
-	int counter;
+	int counter = 0;
 	while(counter < 20){ //setting max loops during development
+		printf("starting\n");
 		//check to see if its time for a new process to start
 		if(line >= 10000){
 			terminateSharedResources;
@@ -96,7 +119,7 @@ int main (int argc, char *argv[]) {
 		if ((simClock[1] == newProcessTime[1] && simClock[0] >= newProcessTime[0]) || simClock[1] >= newProcessTime[1]){
 			bool spawnNewProcess = false;
 			//find available location in the resouceTable
-			for (index = 0; index < maxProcesses; index++){
+			for (index = 0; index < maxProcess; index++){
 				if (pidArray[index] == 0){
 					spawnNewProcess = true;
 					childPid = fork();
@@ -112,7 +135,7 @@ int main (int argc, char *argv[]) {
 					//convert index to string to pass to User so it knows its location in the resouceTable
 					char intBuffer[3];
 					sprintf(intBuffer, "%d", index);
-					//printf("%s", intBuffer);
+					printf("%s", intBuffer);
 					execl("./user","user", intBuffer, NULL);
 				} 
 	
@@ -274,14 +297,11 @@ int FindIndex(int value){
 				exit(EXIT_FAILURE);
 		}
 	}
-
+*/
 void print_usage(){
 	printf("Execution syntax oss -options value\n");
 	printf("Options:\n");
 	printf("-h: this help message\n");
-	printf("-l: specify file name for log file.  Default: data.log\n");
-	printf("-s: specify max limit of processes that can be ran.  Default: 5\n");
-	printf("-t: specify max time duration in seconds.  Default: 20\n");
+	printf("-s: specify max limit of processes that can be ran.  Default: 18\n");
 }
-*/
 
