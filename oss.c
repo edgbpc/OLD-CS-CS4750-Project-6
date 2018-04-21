@@ -9,12 +9,12 @@ char fileName[10] = "data.log";
 FILE * fp;
 pid_t childPid; //pid id for child processes
 unsigned int *simClock; // simulated system clock  simClock [0] = seconds, simClock[1] = nanoseconds
-int memoryBlock[256];
+MemoryBlock memoryBlock[256];
 Process *process;
 
 
 int FindIndex(int value);
-int bitVector[18];
+int bitVector[maxProcesses];
 int pidArray[maxProcesses];
 
 //prototypes
@@ -24,7 +24,7 @@ void convertTime(unsigned int simClock[]);
 void print_usage();
 
 //record keeping variables
-int numeMemAccessPerSec;
+int numMemAccessPerSec;
 int numPageFaultsPerMemAccess;
 int averageMemAccessSpeed;
 int numSegFaults;
