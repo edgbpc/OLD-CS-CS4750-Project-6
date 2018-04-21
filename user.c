@@ -1,7 +1,5 @@
 #include "oss.h"
 
-#define read 1
-#define write 0
 
 
 unsigned int * simClock;
@@ -18,11 +16,11 @@ int main (int argc, char *argv[]){
 	int location = atoi(argv[1]);
 
 	int randomTerminateConstant = 90; //change this to increase or decrease chance process will terminate.  currently 50% to terminate
-	int readFromMemoryChance = (rand() % 100) + 1; //sets precent chance memory reference will be a read.
+	int readFromMemoryChance; //holds precent chance memory reference will be a read.
 	int numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
 	int index; //loop counter variable
 	int pageReference; //holds what page is being reference
-	int simulatedInvalidPageReferenceChance = (rand() % 100) + 1; //sets percent chance to cause a segmentation fault
+	int simulatedInvalidPageReferenceChance; //sets percent chance to cause a segmentation fault
 	int referenceType; //holds if reference type will be read or write
 
 	//signal handling
@@ -70,29 +68,57 @@ int main (int argc, char *argv[]){
 		//for (index = 0; index < numPages; index++){
 		//	printf("process %d has %d in page %d\n", getpid(), process[location].page[index], index ); //just want some kind of data in the page
 		//}
+		//
 	
-	if (simulatedInvalidPageReferenceChance > 99){ 
-		pageReference = numPages + 1;  //simulated seg fault.  change value in live above to increase odds.  currently 1%
-		printf("Process %d - Seg fault\n", myPID);
-	} else {
-		pageReference = (rand() % numPages);
-	}
+	//set message for values that remain same through lifetime of process
 
-	printf("%d\n", readFromMemoryChance);
-
-	if (readFromMemoryChance > 50){
-		referenceType = read; //defined as 1
-	} else {
-		referenceType = write; //defined as 0
-	}
+	message.mesg_type = getppid();
+	message.pid = myPID;
+	while (1){
+		//roll dice
+		readFromMemoryChance = (rand() % 100) + 1; //sets precent chance memory reference will be a read.
+		numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
+		simulatedInvalidPageReferenceChance = (rand() % 100) + 1; //sets percent chance to cause a segmentation fault
 	
 
+		//determine if there is going to be a seg fault
+		if (simulatedInvalidPageReferenceChance > 99){ 
+			pageReference = numPages + 1;  //simulated seg fault.  change value in live above to increase odds.  currently 1%
+			printf("Process %d - Seg fault\n", myPID);
+		} else {
+			pageReference = (rand() % numPages);
+		}
 
-	printf("Process %d made a reference to %d page and type is %d\n",myPID, pageReference, referenceType);
+		printf("%d\n", readFromMemoryChance);
+
+		
+		//determine precent chance of read or a write.  higher value, the greater the chance of a read
+		if (readFromMemoryChance > 50){
+			referenceType = read; //defined as 1
+		} else {
+			referenceType = write; //defined as 0
+		}
+	
+		//build message for parent
+		message.pageReference = pageReference;
+		message.referenceType = referenceType;
+	
+		//check used in development	
+	//	printf("Process: %d - %ld %d %d %d\n", getpid(), message.mesg_type, message.pageReference, message.pid, message.referenceType);
+	
+		//send a message to parent
+		if(msgsnd(messageBoxID, &message, sizeof(message), 0) ==  -1){
+			perror("oss: failed to send message to user");
+		}
+
+		//wait for a message from parent
+		msgrcv(messageBoxID, &message, sizeof(message), myPID, 0); //retrieve message from box.  child is blocked unless there is a message its PID available
+	
+	//	printf("Process %d made a reference to %d page and type is %d\n",myPID, pageReference, referenceType);
 	
 
 sleep(5);
-
+	} //end while loop
 } //end main
 /*
 int findResource(int allocated[][maxResources], int location){
