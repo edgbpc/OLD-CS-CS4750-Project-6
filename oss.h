@@ -23,6 +23,8 @@
 
 #define SHM_SIZE 2000
 #define BILLION 1000000000L //taken from book
+#define read 1
+#define write 0
 
 //governs maximum amouut of processes.  change to increase/decrease
 #define maxProcesses 18
@@ -38,10 +40,10 @@ typedef struct {
 } PageTable;
 
 typedef struct {
-	int dirty;
-	int reference;
-	int read;
-	int write;
+	int dirtyBit;
+	int referenceBit;
+	int readBit;
+	int writeBit;
 
 }MemoryBlock;
 
@@ -55,7 +57,8 @@ typedef struct {
 typedef struct {
 	long mesg_type;				//controls who cam retreive a message
 	int pid;
-	int RTLocation;
+	int pageReference;
+	int referenceType;
 } Message;
 
 typedef struct
