@@ -41,8 +41,11 @@ int main (int argc, char *argv[]) {
 	int processLimit = 100; //max number of processes allowed by assignment parameters
 	double terminateTime = 3; //used by setperiodic to terminate program
 	unsigned int newProcessTime[2] = {0,0};
-	Queue* blockedQueue = createQueue(maxProcesses);
 	bool messageReceived;
+	bool pagePresent;
+	int index; //loop counting variable
+	bool frameAvailable;
+	bool noEmptyFrames;
 
 //open file for writing	
 	fp = fopen(fileName, "w");
@@ -84,7 +87,12 @@ int main (int argc, char *argv[]) {
 		return 1;
 	}
 
-	int line;
+	for (index = 0; index < 256; index++){
+		memoryBlock[index].frame = empty;
+	}
+
+
+	int line = 0;
 
 	char option;
 	while ((option = getopt(argc, argv, "s:h")) != -1){
@@ -105,23 +113,23 @@ int main (int argc, char *argv[]) {
 	}
 
 printf("Max processes selected was %d\n", maxProcess);
-	int index;
 
-	int counter = 0;
-	while(counter < 20){ //setting max loops during development
-		printf("starting\n");
+	while(1){ //setting max loops during development
 		//check to see if its time for a new process to start
+		
+
+		printf("starting\n");
 		if(line >= 10000){
 			terminateSharedResources;
 			kill(getpid(), SIGINT);
 		}	
-		counter++;
 		if ((simClock[1] == newProcessTime[1] && simClock[0] >= newProcessTime[0]) || simClock[1] >= newProcessTime[1]){
 			bool spawnNewProcess = false;
 			//find available location in the resouceTable
 			for (index = 0; index < maxProcess; index++){
 				if (pidArray[index] == 0){
 					spawnNewProcess = true;
+					printf("forking child\n");
 					childPid = fork();
 					break;
 				}
@@ -151,19 +159,125 @@ printf("Max processes selected was %d\n", maxProcess);
 	
 		}
 
-		
-			simClock[0] += 5555555555;
-			convertTime(simClock);
-		
-			
-//				msgrcv(messageBoxID, &message, sizeof(message), 5, IPC_NOWAIT);	
+ 		//wait for a message from a child
+		msgrcv(messageBoxID, &message, sizeof(message), getpid(), 1);
+
+		noEmptyFrames = false;
+		pagePresent = false;
 	
+		printf("message received\n");
+		fprintf(fp, "Process  %d made reference to page %d.  its delimiter is %d\n", message.pid, message.pageReference, process[message.location].pageTable.delimiter);
+		fflush(fp);
+
+	
+		//check for segmentation fault
+		if (message.pageReference > process[message.location].pageTable.delimiter){
+			
+			//if seg fault
+			fprintf(fp, "Process %d made a request that resulted in a segmentation fault.  Terminated by OSS at time %d.%d\n", message.pid, simClock[1], simClock[0]);
+			fflush(fp);
+			printf("Process %d - SEGMENTATION FAULT\n", message.pid);
+			pidArray[message.location] = 0;
+			kill(message.pid, SIGTERM);
+			continue;
+		}
 
 
-//				if(msgsnd(messageBoxID, &message, sizeof(message), 0) ==  -1){
-//						perror("oss attempted to send message after safety check of a blocked resource");
-//				}
-}
+		//check for page fault
+		printf("Process %d has made a reference to page %d\n", message.pid, message.pageReference);
+		//check pocess pageTable if page exists in memory
+		if(process[message.location].pageTable.pageFrame[message.pageReference] != -1){
+			pagePresent = true;
+			//set reference bit to 1 since existing page was referenced
+		//	fprintf(fp, "Process %d made reference to page already in memory\n", message.pid);
+		//	fflush(fp);
+			memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].referenceBit = 1; 
+			//set dirtyBit if type was write
+			if(message.referenceType = write)
+				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 1; 
+			if(message.referenceType = read)
+				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 0; 
+		
+				 
+			
+			//increment clock
+			simClock[0] += 10;
+	
+		}		
+		
+
+		if (!pagePresent){
+		//check if room in the memoryBlock for page
+			for (index = 0; index < 256; index++){
+//			printf("check memoryBlock %d\n", index);
+				if (memoryBlock[index].frame == empty){
+					//assign page to memoryBlock frame
+					printf("memoryBlock location %d is empty\n", index);
+
+					memoryBlock[index].frame = used; 
+					memoryBlock[index].pid = message.pid;
+					memoryBlock[index].referenceBit = 0;
+					memoryBlock[index].dirtyBit = 0;
+					process[message.location].pageTable.pageFrame[message.pageReference] = index;
+					fprintf(fp, "Process %d page %d saved to memoryBlock frame %d\n", message.pid, message.pageReference, index);
+					fflush(fp);
+					//simulate read/write time 
+					//increment clock 15ms
+					simClock[0] += 15000000;
+					convertTime(simClock);
+					break;
+				} else if (index == 255){
+					noEmptyFrames = true;
+				}	
+			}		
+			if (noEmptyFrames){
+				//find a page to discard
+				int victim; //which memory location to evict 
+				//check memoryBlock reference bits
+			
+				for (index = 0; index < 256; index++){
+					if (memoryBlock[index].referenceBit == 0) {
+						//check memoryBlock for dirty bits.  needs to be written to disk before can be evicted
+						if(memoryBlock[index].dirtyBit == 0) {
+							victim = index;
+							break; 
+						} else {
+							memoryBlock[index].dirtyBit = 0;
+							//simulate disk writing time
+							//this location eligible for eviction on next check if not written to again
+							simClock[0] += 15000000;
+							convertTime(simClock);
+						}
+					} else {
+						//change reference bit to 0. 
+						//makes it eligible for eviction on next pass if not referenced again
+						memoryBlock[index].referenceBit = 0;
+					} 
+
+					if (index == 255){
+						victim = 0;
+					}
+				}
+
+				fprintf(fp, "Page in Memory Block %d being evicted\n", victim);
+				fflush(fp);
+				//change sentry for evicted process to -1
+				int victimIndex = findPid(memoryBlock[victim].pid);
+				process[victimIndex].pageTable.pageFrame[victim] = -1;
+		
+				//increment clock 15ms
+				simClock[0] += 15000000;
+				convertTime(simClock);
+			}
+		}
+	
+		message.mesg_type = message.pid;	   
+		printf("sending message to child %d\n", message.pid);
+
+		if(msgsnd(messageBoxID, &message, sizeof(message), 0) ==  -1){
+			perror("oss: ");
+		}
+	} //end while loop
 wait(NULL);
 } //end main()
 //convertTime
@@ -171,6 +285,8 @@ void convertTime(unsigned int simClock[]){
 	simClock[1] += simClock[0]/1000000000;
 	simClock[0] = simClock[0]%1000000000;
 }
+
+
 
 
 //TAKEN FROM BOOK
@@ -210,6 +326,7 @@ void handle(int signo){
 		exit(0);
 	}
 }
+
 
 
 void terminateSharedResources(){
