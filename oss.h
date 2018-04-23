@@ -25,6 +25,8 @@
 #define BILLION 1000000000L //taken from book
 #define read 1
 #define write 0
+#define empty -1
+#define used 1
 
 //governs maximum amouut of processes.  change to increase/decrease
 #define maxProcesses 18
@@ -34,21 +36,21 @@
 
 typedef struct {
 	int delimiter;
-	int frame[256];
+	int pageFrame[31];//stores frame index page is stored in	
 	int offset;
 
 } PageTable;
 
 typedef struct {
-	int dirtyBit;
+	int frame;
 	int referenceBit;
+	int dirtyBit;
 	int readBit;
 	int writeBit;
-
+	int pid;
 }MemoryBlock;
 
 typedef struct {
-	int page[31];
 	PageTable pageTable;
 	int pid;
 } Process;
@@ -58,15 +60,17 @@ typedef struct {
 	long mesg_type;				//controls who cam retreive a message
 	int pid;
 	int pageReference;
+	int location;
 	int referenceType;
 } Message;
 
 typedef struct
 {
-    int front, rear, size;
-    unsigned capacity;
+	int front, rear, size;
+	unsigned capacity;
 	int * array;
 } Queue;
+
 
 //prototypes
 void handle(int signo);
