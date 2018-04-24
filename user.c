@@ -87,7 +87,7 @@ int main (int argc, char *argv[]){
 		
 	while (1){
 		//roll dice
-		printf("process %d is rolling the dice\n", myPID);
+	//	printf("process %d is rolling the dice\n", myPID);
 		readFromMemoryChance = (rand() % 100) + 1; //sets precent chance memory reference will be a read.
 		numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
 		simulatedInvalidPageReferenceChance = (rand() % 100) + 1; //sets percent chance to cause a segmentation fault
@@ -118,15 +118,15 @@ int main (int argc, char *argv[]){
 	//	printf("Process: %d - %ld %d %d %d\n", getpid(), message.mesg_type, message.pageReference, message.pid, message.referenceType);
 	
 		//send a message to parent
-		printf("%d\n", message.mesg_type);
+		//printf("%d\n", message.mesg_type);
 		if(msgsnd(messageBoxID, &message, sizeof(message), 1) ==  -1){
 			perror("oss: failed to send message to user");
 		}
 
 		//wait for a message from parent
-		printf("%d waiting on message from parent\n", myPID);
+		//printf("%d waiting on message from parent\n", myPID);
 		msgrcv(messageBoxID, &message, sizeof(message), myPID, 0); //retrieve message from box.  child is blocked unless there is a message its PID available
-		printf("%d received message from parent\n", myPID);
+	//	printf("%d received message from parent\n", myPID);
 			
 	//	printf("Process %d made a reference to %d page and type is %d\n",myPID, pageReference, referenceType);
 	
