@@ -29,6 +29,7 @@ int numPageFaultsPerMemAccess;
 int averageMemAccessSpeed;
 int numSegFaults;
 int throughput;
+int totalProcessesCreated; //keeps track of all processes created	
 
 int main (int argc, char *argv[]) {
 	//keys
@@ -37,15 +38,15 @@ int main (int argc, char *argv[]) {
 	keyProcess = 59567;
 
 	int maxProcess = 18; //default
-	int totalProcessesCreated = 0; //keeps track of all processes created	
 	int processLimit = 100; //max number of processes allowed by assignment parameters
-	double terminateTime = 3; //used by setperiodic to terminate program
+	double terminateTime = 10; //used by setperiodic to terminate program
 	unsigned int newProcessTime[2] = {0,0};
 	bool messageReceived;
 	bool pagePresent;
 	int index; //loop counting variable
 	bool frameAvailable;
 	bool noEmptyFrames;
+	int status;
 
 //open file for writing	
 	fp = fopen(fileName, "w");
@@ -121,6 +122,7 @@ printf("Max processes selected was %d\n", maxProcess);
 		printf("starting\n");
 		if(line >= 10000){
 			terminateSharedResources;
+			printf("Terminated due to data.log reaching 10,000 lines\n");
 			kill(getpid(), SIGINT);
 		}	
 		if ((simClock[1] == newProcessTime[1] && simClock[0] >= newProcessTime[0]) || simClock[1] >= newProcessTime[1]){
@@ -150,7 +152,7 @@ printf("Max processes selected was %d\n", maxProcess);
 				pidArray[index] = childPid;
 				fprintf(fp, "Process %d created at system %d.%d.  Saved to location %d\n", childPid, simClock[1], simClock[0], index);
 				fflush(fp);
-
+				totalProcessesCreated++;
 			}
 
 			newProcessTime[0] = (rand() % 500000000) + 1000000 + simClock[0];
@@ -179,6 +181,7 @@ printf("Max processes selected was %d\n", maxProcess);
 			printf("Process %d - SEGMENTATION FAULT\n", message.pid);
 			pidArray[message.location] = 0;
 			kill(message.pid, SIGTERM);
+			wait(NULL);
 			continue;
 		}
 
@@ -189,15 +192,20 @@ printf("Max processes selected was %d\n", maxProcess);
 		if(process[message.location].pageTable.pageFrame[message.pageReference] != -1){
 			pagePresent = true;
 			//set reference bit to 1 since existing page was referenced
-		//	fprintf(fp, "Process %d made reference to page already in memory\n", message.pid);
-		//	fflush(fp);
+			fprintf(fp, "Process %d made reference to page already in memory.  Its type is %d\n", message.pid, message.referenceType);
+			fflush(fp);
 			memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].referenceBit = 1; 
 			//set dirtyBit if type was write
-			if(message.referenceType = write)
+			if(message.referenceType == write){
+				fprintf(fp, "Process %d made a write request to page %d\n", message.pid, message.pageReference);
+				fflush(fp);
 				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 1; 
-			if(message.referenceType = read)
+			}			
+			if(message.referenceType == read){
+				fprintf(fp, "Process %d made a read request to page %d\n", message.pid, message.pageReference);
+				fflush(fp);
 				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 0; 
-		
+			}
 				 
 			
 			//increment clock
@@ -237,9 +245,11 @@ printf("Max processes selected was %d\n", maxProcess);
 			
 				for (index = 0; index < 256; index++){
 					if (memoryBlock[index].referenceBit == 0) {
+						printf("reference bit of process %d is %d\n", pidArray[index], memoryBlock[index].referenceBit);
 						//check memoryBlock for dirty bits.  needs to be written to disk before can be evicted
 						if(memoryBlock[index].dirtyBit == 0) {
 							victim = index;
+							
 							break; 
 						} else {
 							memoryBlock[index].dirtyBit = 0;
@@ -262,13 +272,22 @@ printf("Max processes selected was %d\n", maxProcess);
 				fprintf(fp, "Page in Memory Block %d being evicted\n", victim);
 				fflush(fp);
 				//change sentry for evicted process to -1
-				int victimIndex = findPid(memoryBlock[victim].pid);
-				process[victimIndex].pageTable.pageFrame[victim] = -1;
+//				int victimIndex = findPid(memoryBlock[victim].pid);
+				process[message.location].pageTable.pageFrame[victim] = -1;
 		
 				//increment clock 15ms
 				simClock[0] += 15000000;
 				convertTime(simClock);
+
+				memoryBlock[victim].frame = used;
+				memoryBlock[victim].pid = message.pid;
+				memoryBlock[victim].referenceBit = 0;
+				memoryBlock[victim].dirtyBit = 0;
+				process[message.location].pageTable.pageFrame[message.pageReference] = victim;
+				fprintf(fp, "Process %d page %d saved to memoryBLock frame %d\n", message.pid, message.pageReference, victim);
+				fflush(fp);
 			}
+
 		}
 	
 		message.mesg_type = message.pid;	   
@@ -286,6 +305,9 @@ void convertTime(unsigned int simClock[]){
 	simClock[0] = simClock[0]%1000000000;
 }
 
+void printReport(){
+	printf("Total Processes Created: %d\n", totalProcessesCreated);
+}
 
 
 
@@ -330,6 +352,7 @@ void handle(int signo){
 
 
 void terminateSharedResources(){
+		printReport();
 		shmctl(shmidSimClock, IPC_RMID, NULL);
 		shmctl(shmidProcess, IPC_RMID, NULL);
 		msgctl(messageBoxID, IPC_RMID, NULL);
