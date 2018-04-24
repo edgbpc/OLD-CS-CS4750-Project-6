@@ -21,6 +21,7 @@ int pidArray[maxProcesses];
 static int setperiodic(double sec);
 void terminateSharedResources();
 void convertTime(unsigned int simClock[]);
+void printMemoryMap();
 void print_usage();
 
 //record keeping variables
@@ -30,6 +31,7 @@ int averageMemAccessSpeed;
 int numSegFaults;
 int throughput;
 int totalProcessesCreated; //keeps track of all processes created	
+
 
 int main (int argc, char *argv[]) {
 	//keys
@@ -207,7 +209,7 @@ printf("Max processes selected was %d\n", maxProcess);
 				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 0; 
 			}
 				 
-			
+			printMemoryMap();
 			//increment clock
 			simClock[0] += 10;
 	
@@ -237,7 +239,8 @@ printf("Max processes selected was %d\n", maxProcess);
 				} else if (index == 255){
 					noEmptyFrames = true;
 				}	
-			}		
+			}
+			printMemoryMap();		
 			if (noEmptyFrames){
 				//find a page to discard
 				int victim; //which memory location to evict 
@@ -263,12 +266,11 @@ printf("Max processes selected was %d\n", maxProcess);
 						//makes it eligible for eviction on next pass if not referenced again
 						memoryBlock[index].referenceBit = 0;
 					} 
-
 					if (index == 255){
 						victim = 0;
 					}
 				}
-
+				
 				fprintf(fp, "Page in Memory Block %d being evicted\n", victim);
 				fflush(fp);
 				//change sentry for evicted process to -1
@@ -286,6 +288,7 @@ printf("Max processes selected was %d\n", maxProcess);
 				process[message.location].pageTable.pageFrame[message.pageReference] = victim;
 				fprintf(fp, "Process %d page %d saved to memoryBLock frame %d\n", message.pid, message.pageReference, victim);
 				fflush(fp);
+				printMemoryMap();
 			}
 
 		}
@@ -327,7 +330,32 @@ static int setperiodic(double sec) {
    return timer_settime(timerid, 0, &value, NULL);
 }
 
-
+void printMemoryMap(){
+	int i;
+	for (i = 0; i < 256; i++){
+		if (memoryBlock[i].referenceBit == 1){
+			fprintf(fp, "1");
+		} else if (memoryBlock[i].referenceBit == 0){
+			fprintf(fp, "0");
+		} else {
+			fprintf(fp, ".");
+		}
+	}
+	fprintf(fp, "\n");
+	fflush(fp);
+	for (i = 0; i < 256; i++){
+		if (memoryBlock[i].dirtyBit == 1){
+			fprintf(fp, "D");
+		} else if (memoryBlock[i].dirtyBit == 0) {
+			fprintf(fp, "U");
+		} else {
+			fprintf(fp, " .");
+		}
+		fflush(fp);
+	}
+	fprintf(fp, "\n");
+	fflush(fp);
+}
 int findPid(int pid){
 	int i;
 	for (i = 0; i < maxProcesses; i++){
