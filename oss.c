@@ -23,10 +23,12 @@ void terminateSharedResources();
 void convertTime(unsigned int simClock[]);
 void printMemoryMap();
 void print_usage();
+void calculateStatistics();
 
 //record keeping variables
-int numMemAccessPerSec;
-int numPageFaultsPerMemAccess;
+float numMemAccessPerSec;
+float numMemAccessPerNanoSec;
+float numPageFaultsPerMemAccess;
 int averageMemAccessSpeed;
 int numSegFaults;
 int throughput;
@@ -34,7 +36,7 @@ int totalProcessesCreated; //keeps track of all processes created
 int numMemoryAccess;
 int numEvictions;
 int line;
-
+int numPageFaults;
 
 int main (int argc, char *argv[]) {
 	//keys
@@ -228,6 +230,7 @@ printf("Max processes selected was %d\n", maxProcess);
 		
 
 		if (!pagePresent){
+			numPageFaults++;
 		//check if room in the memoryBlock for page
 			for (index = 0; index < 256; index++){
 //			printf("check memoryBlock %d\n", index);
@@ -323,11 +326,23 @@ void convertTime(unsigned int simClock[]){
 	simClock[0] = simClock[0]%1000000000;
 }
 
+void calculateStatistics(){
+	float numSecsRan = simClock[1] * 1000000000;
+	numSecsRan += simClock[0];
+	numMemAccessPerSec = (numSecsRan/(float)numMemoryAccess)/1000000000;
+	numPageFaultsPerMemAccess = (float)numPageFaults/(float)numMemoryAccess;
+
+}
+
 void printReport(){
+	calculateStatistics();	
 	printf("Total Processes Created: %d\n", totalProcessesCreated);
 	printf("Number of Segmentation Faults: %d\n", numSegFaults);
 	printf("Number of Memory Access Attempts: %d\n", numMemoryAccess);
 	printf("Number of Evictions: %d\n", numEvictions);
+	printf("Number of Page Faults: %d\n", numPageFaults);
+	printf("Number of Memory Accesses Per Second: %f\n", numMemAccessPerSec);
+	printf("Number of Page Faults per Memory Access: %f\n", numPageFaultsPerMemAccess);
 	printf("Lines on data.log: %d\n", line);
 }
 
