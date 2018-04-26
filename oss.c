@@ -54,6 +54,7 @@ int main (int argc, char *argv[]) {
 	bool frameAvailable;
 	bool noEmptyFrames;
 	int status;
+	Queue* FIFOQueue = createQueue(256);
 
 //open file for writing	
 	fp = fopen(fileName, "w");
@@ -126,9 +127,9 @@ printf("Max processes selected was %d\n", maxProcess);
 		
 
 		printf("starting\n");
-		if(line >= 10000){
+		if(line >= 100000){
 			terminateSharedResources;
-			printf("Terminated due to data.log exceeding 10,000 lines\n");
+			printf("Terminated due to data.log exceeding 100,000 lines\n");
 			kill(getpid(), SIGINT);
 		}	
 		if ((simClock[1] == newProcessTime[1] && simClock[0] >= newProcessTime[0]) || simClock[1] >= newProcessTime[1]){
@@ -242,9 +243,13 @@ printf("Max processes selected was %d\n", maxProcess);
 					memoryBlock[index].pid = message.pid;
 					memoryBlock[index].referenceBit = 0;
 					memoryBlock[index].dirtyBit = 0;
+					enqueue(FIFOQueue, index); //keep track of order pages were added
+					printf("%d was saved to FIFOQueue\n", index);
 					process[message.location].pageTable.pageFrame[message.pageReference] = index;
+					fprintf(fp, "memoryBlock location %d added to FIFOQueue\n", index);
 					fprintf(fp, "Process %d page %d saved to memoryBlock frame %d at time %d.%d\n", message.pid, message.pageReference, index, simClock[1], simClock[0]);
 					fflush(fp);
+					line++;
 					line++;
 					//simulate read/write time 
 					//increment clock 15ms
@@ -260,31 +265,41 @@ printf("Max processes selected was %d\n", maxProcess);
 				//find a page to discard
 				int victim; //which memory location to evict 
 				//check memoryBlock reference bits
+				int FIFOIndex = 0;
+				fprintf(fp, "Searching for a page to evict\n");
+				fflush(fp);
+				bool searching = true;
 			
-				for (index = 0; index < 256; index++){
-					if (memoryBlock[index].referenceBit == 0) {
-						//check memoryBlock for dirty bits.  needs to be written to disk before can be evicted
-						if(memoryBlock[index].dirtyBit == 0) {
-							victim = index;
-							
-							break; 
+	
+				while(searching){
+					int candidate = front(FIFOQueue);
+					if (isEmpty(FIFOQueue)){
+						break;
 						} else {
-							memoryBlock[index].dirtyBit = 0;
-							//simulate disk writing time
-							//this location eligible for eviction on next check if not written to again
-							simClock[0] += 15000000;
-							convertTime(simClock);
-						}
-					} else {
-						//change reference bit to 0. 
-						//makes it eligible for eviction on next pass if not referenced again
-						memoryBlock[index].referenceBit = 0;
-					} 
-					if (index == 255){
-						victim = 0;
+						dequeue(FIFOQueue);
 					}
+	
+					if(memoryBlock[candidate].referenceBit == 0 && memoryBlock[candidate].dirtyBit == 0){
+							victim = candidate;
+							fprintf(fp, "Selected %d for eviction\n", victim);
+							fflush(fp);	
+							searching = false;
+							break;
+						} else {
+							if (memoryBlock[candidate].dirtyBit == 1){
+								memoryBlock[candidate].dirtyBit = 0;
+								//simulate disk writing time
+								//this location eligible for eviction on next check if not written to again
+								simClock[0] += 15000000;
+								convertTime(simClock);
+							}
+							if (memoryBlock[candidate].referenceBit == 1){
+								memoryBlock[candidate].referenceBit = 0;			
+							}
+						enqueue(FIFOQueue, candidate);
+					}
+					
 				}
-				
 				fprintf(fp, "Page in Memory Block %d being evicted at time %d.%d\n", victim, simClock[1], simClock[0]);
 				fflush(fp);
 				line++;
@@ -292,11 +307,9 @@ printf("Max processes selected was %d\n", maxProcess);
 				//change sentry for evicted process to -1
 //				int victimIndex = findPid(memoryBlock[victim].pid);
 				process[message.location].pageTable.pageFrame[victim] = -1;
-		
 				//increment clock 15ms
 				simClock[0] += 15000000;
 				convertTime(simClock);
-
 				memoryBlock[victim].frame = used;
 				memoryBlock[victim].pid = message.pid;
 				memoryBlock[victim].referenceBit = 0;
@@ -307,8 +320,8 @@ printf("Max processes selected was %d\n", maxProcess);
 				line++;
 				printMemoryMap();
 			}
-
 		}
+		
 	
 		message.mesg_type = message.pid;	   
 		printf("sending message to child %d\n", message.pid);
