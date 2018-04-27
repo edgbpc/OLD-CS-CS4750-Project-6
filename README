@@ -1,0 +1,38 @@
+Execute by ./oss 
+Options
+ -s to indicate max number of processes.  if > 18, defaults to 18.
+If ran with just ./oss there is also default t0 18
+-h to display help message
+
+
+All user process requests 1 page and waits for OSS to signal back that it can continue.  
+OSS determines if seg faults and handles termination.
+OSS also handles the termination if the process rolled a chance to terminate.  I used random chance 1-100 in user to determine chance at self terminations.
+OSS determines page faults and what do when page fault occurs.
+
+I use Process struct that is in shared memory to keep my pagetable which is another struct.
+I also use a struct MemoryBlock to represent my memory.  this is not shared.
+
+there is shared clock although user does ever actually need the clock for anything.  All reporting comes from OSS
+
+for second chance fifo, i use a Queue.  The Queue code I did not write and it is sourced in the code itself where I got it.
+The FIFOQueue holds the memoryblock location of that page which I use to index the memoryBlock.
+Algorithm for 2nd chance FIFO is basically as follows:
+As a page is assigned to memoryblock, its enqueued to my FIFOQueue.  If it gets reference in another run then reference bit chances to 1.  there is also a precent
+chance that the type of reference is read or write. if write occurs, there is a dirty bit that changes to 1.
+During FIFO algorithm, the front of queue is checked, if either reference bit or dirty bit is 1 then its moved to the end of the queue (the second chance). if this occurs, the reference and/or
+dirty bit is changed to 0.  
+Once a candidate is selected for swaping, the new page comes in and its enqueued as well to the FIFOQueue.
+
+My log file is pretty verbose.  There is a memory Map that prints everytime that reference or dirty bit is changed.  Probably print it too much.
+
+My OSS pretty much always terminates due to size of log file.
+I don't limit the total number of processes that can be created although only 18 unique proceses are possible at once.
+
+There seems to be a bug that I could not solve.  On some runs, there is a message queue error that occurs.  its too random that I could not track down.
+Before final turn in, I ran it about 20 times in a row and it didn't do the error so this may be solved.
+
+The text that scrolls during the execution was meant to help me write incremently.  There is a final report the statistics requested.
+
+
+
