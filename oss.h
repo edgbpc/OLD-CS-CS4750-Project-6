@@ -36,7 +36,7 @@
 
 typedef struct {
 	int delimiter;
-	int pageFrame[31];//stores frame index page is stored in	
+	int pageFrame[32];//stores frame index page is stored in	
 	int offset;
 
 } PageTable;
@@ -62,6 +62,7 @@ typedef struct {
 	int pageReference;
 	int location;
 	int referenceType;
+	bool terminate;
 } Message;
 
 typedef struct
