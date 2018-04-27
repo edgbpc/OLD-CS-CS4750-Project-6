@@ -24,6 +24,7 @@ void convertTime(unsigned int simClock[]);
 void printMemoryMap();
 void print_usage();
 void calculateStatistics();
+void printReport();
 
 //record keeping variables
 float numMemAccessPerSec;
@@ -37,6 +38,7 @@ int numMemoryAccess;
 int numEvictions;
 int line;
 int numPageFaults;
+int processSelfTerminations;
 
 int main (int argc, char *argv[]) {
 	//keys
@@ -53,7 +55,6 @@ int main (int argc, char *argv[]) {
 	int index; //loop counting variable
 	bool frameAvailable;
 	bool noEmptyFrames;
-	int status;
 	Queue* FIFOQueue = createQueue(256);
 
 //open file for writing	
@@ -127,10 +128,10 @@ printf("Max processes selected was %d\n", maxProcess);
 		
 
 		printf("starting\n");
-		if(line >= 100000){
-			terminateSharedResources;
-			printf("Terminated due to data.log exceeding 100,000 lines\n");
-			kill(getpid(), SIGINT);
+		if(line >= 10000){
+			printf("Terminated due to data.log exceeding 10000 lines\n");
+			kill(-getpid(), SIGINT);
+			break;
 		}	
 		if ((simClock[1] == newProcessTime[1] && simClock[0] >= newProcessTime[0]) || simClock[1] >= newProcessTime[1]){
 			bool spawnNewProcess = false;
@@ -182,6 +183,18 @@ printf("Max processes selected was %d\n", maxProcess);
 		fflush(fp);
 		line++;
 
+		if (message.terminate == true){
+			fprintf(fp, "Process %d terminated\n", message.pid);
+			fflush(fp);
+			line++;
+			pidArray[message.location] = 0;
+			kill(message.pid, SIGTERM);
+			wait(NULL);
+			processSelfTerminations++;
+			continue;
+		}
+
+
 	
 		//check for segmentation fault
 		if (message.pageReference > process[message.location].pageTable.delimiter){
@@ -211,13 +224,13 @@ printf("Max processes selected was %d\n", maxProcess);
 			memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].referenceBit = 1; 
 			//set dirtyBit if type was write
 			if(message.referenceType == write){
-				fprintf(fp, "Process %d made a write request to page %d\n at time %d.%d", message.pid, message.pageReference, simClock[1], simClock[0]);
+				fprintf(fp, "Process %d made a write request to page %d at time %d.%d\n", message.pid, message.pageReference, simClock[1], simClock[0]);
 				fflush(fp);
 				line++;
 				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 1; 
 			}			
 			if(message.referenceType == read){
-				fprintf(fp, "Process %d made a read request to page %d\n at time %d.%d", message.pid, message.pageReference, simClock[1], simClock[0]);
+				fprintf(fp, "Process %d made a read request to page %d at time %d.%d\n", message.pid, message.pageReference, simClock[1], simClock[0]);
 				fflush(fp);
 				line++;
 				memoryBlock[process[message.location].pageTable.pageFrame[message.pageReference]].dirtyBit = 0; 
@@ -265,47 +278,46 @@ printf("Max processes selected was %d\n", maxProcess);
 				//find a page to discard
 				int victim; //which memory location to evict 
 				//check memoryBlock reference bits
-				int FIFOIndex = 0;
 				fprintf(fp, "Searching for a page to evict\n");
 				fflush(fp);
 				bool searching = true;
-			
+				int candidate;
 	
-				while(searching){
-					int candidate = front(FIFOQueue);
-					if (isEmpty(FIFOQueue)){
-						break;
-						} else {
+				do {
+					candidate = front(FIFOQueue);
 						dequeue(FIFOQueue);
-					}
 	
-					if(memoryBlock[candidate].referenceBit == 0 && memoryBlock[candidate].dirtyBit == 0){
+					if(memoryBlock[candidate].referenceBit == 0){
+						if ( memoryBlock[candidate].dirtyBit == 0){
 							victim = candidate;
 							fprintf(fp, "Selected %d for eviction\n", victim);
 							fflush(fp);	
 							searching = false;
 							break;
-						} else {
-							if (memoryBlock[candidate].dirtyBit == 1){
-								memoryBlock[candidate].dirtyBit = 0;
-								//simulate disk writing time
-								//this location eligible for eviction on next check if not written to again
-								simClock[0] += 15000000;
-								convertTime(simClock);
-							}
-							if (memoryBlock[candidate].referenceBit == 1){
-								memoryBlock[candidate].referenceBit = 0;			
-							}
-						enqueue(FIFOQueue, candidate);
+						}
+				
 					}
+
+					if(memoryBlock[candidate].dirtyBit == 1){
+						memoryBlock[candidate].dirtyBit = 0;
+						//simulate disk writing time
+						//this location eligible for eviction on next check if not written to again
+						simClock[0] += 15000000;
+						convertTime(simClock);
+						}
+
+					if(memoryBlock[candidate].referenceBit == 1){
+						memoryBlock[candidate].referenceBit = 0;
+						}
+
+					enqueue(FIFOQueue, candidate);
 					
-				}
+					
+				} while(searching);
 				fprintf(fp, "Page in Memory Block %d being evicted at time %d.%d\n", victim, simClock[1], simClock[0]);
 				fflush(fp);
 				line++;
 				numEvictions++;
-				//change sentry for evicted process to -1
-//				int victimIndex = findPid(memoryBlock[victim].pid);
 				process[message.location].pageTable.pageFrame[victim] = -1;
 				//increment clock 15ms
 				simClock[0] += 15000000;
@@ -317,6 +329,7 @@ printf("Max processes selected was %d\n", maxProcess);
 				process[message.location].pageTable.pageFrame[message.pageReference] = victim;
 				fprintf(fp, "Process %d page %d saved to memoryBLock frame %d at time %d.%d\n", message.pid, message.pageReference, victim, simClock[1], simClock[0]);
 				fflush(fp);
+				enqueue(FIFOQueue, victim);
 				line++;
 				printMemoryMap();
 			}
@@ -330,8 +343,9 @@ printf("Max processes selected was %d\n", maxProcess);
 			perror("oss: ");
 		}
 	} //end while loop
-wait(NULL);
-
+//wait(NULL);
+terminateSharedResources();
+return 1;
 } //end main()
 //convertTime
 void convertTime(unsigned int simClock[]){
@@ -350,6 +364,7 @@ void calculateStatistics(){
 void printReport(){
 	calculateStatistics();	
 	printf("Total Processes Created: %d\n", totalProcessesCreated);
+	printf("Number of Self Terminations: %d\n", processSelfTerminations);
 	printf("Number of Segmentation Faults: %d\n", numSegFaults);
 	printf("Number of Memory Access Attempts: %d\n", numMemoryAccess);
 	printf("Number of Evictions: %d\n", numEvictions);
@@ -429,7 +444,7 @@ void handle(int signo){
 
 
 void terminateSharedResources(){
-		printReport();
+	printReport();
 		shmctl(shmidSimClock, IPC_RMID, NULL);
 		shmctl(shmidProcess, IPC_RMID, NULL);
 		msgctl(messageBoxID, IPC_RMID, NULL);
@@ -485,13 +500,6 @@ int rear(Queue* queue){
         return queue->array[queue->rear];
 }
 
-//this code came from https://stackoverflow.com/questions/25003961/find-array-index-if-given-value
-int FindIndex(int value){
-	int i = 0;
-
-	while (i < maxProcesses && bitVector[i] != value) ++i;
-	return (i == maxProcesses ? -1 : i );
-	}
 
 /*
  KEPT FOR FUTURE USE
