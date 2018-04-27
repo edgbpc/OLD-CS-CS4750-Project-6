@@ -15,9 +15,8 @@ int main (int argc, char *argv[]){
 	int myPID = getpid();
 	int location = atoi(argv[1]);
 
-	int randomTerminateConstant = 90; //change this to increase or decrease chance process will terminate.  currently 50% to terminate
+	int terminationChance; //change this to increase or decrease chance process will terminate.  currently 50% to terminate
 	int readFromMemoryChance; //holds precent chance memory reference will be a read.
-	int numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
 	int index; //loop counter variable
 	int pageReference; //holds what page is being reference
 	int simulatedInvalidPageReferenceChance; //sets percent chance to cause a segmentation fault
@@ -53,22 +52,9 @@ int main (int argc, char *argv[]){
 		perror("user: failed to acceess parent message box");
 	}
 
-	//save location in the resource table to the process structure
-	//copy maxCLaims to the process structure
-
-	//assign numPages to delimiter	
+	int numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
 	process[location].pageTable.delimiter = numPages;
 	printf("Process %d has %d pages\n", getpid(), process[location].pageTable.delimiter);
-
-//	for (index = 0; index < numPages; index++){
-//		process[location].page[index] = (rand() % 50); //just want some kind of data in the page
-//	}
-	
-		//verification to see if data was generated and assigned to the page	
-		//for (index = 0; index < numPages; index++){
-		//	printf("process %d has %d in page %d\n", getpid(), process[location].page[index], index ); //just want some kind of data in the page
-		//}
-		//
 	
 	//set pageTable locations to empty
 	for (index = 0; index < 31; index++){
@@ -89,8 +75,21 @@ int main (int argc, char *argv[]){
 		//roll dice
 	//	printf("process %d is rolling the dice\n", myPID);
 		readFromMemoryChance = (rand() % 100) + 1; //sets precent chance memory reference will be a read.
-		numPages = (rand() % 30) + 1; //set number of pages this process has from 0 to 31	
 		simulatedInvalidPageReferenceChance = (rand() % 100) + 1; //sets percent chance to cause a segmentation fault
+		terminationChance = (rand() % 100) + 1; 
+		
+		if (terminationChance > 90){
+			printf("Process %d has terminated\n", getpid());
+			message.terminate = true;
+			message.mesg_type = getppid();
+			
+			if(msgsnd(messageBoxID, &message, sizeof(message), 1) ==  -1){
+				perror("oss: failed to send message to user");
+			}
+			break;
+		}
+	
+
 	
 
 		//determine if there is going to be a seg fault
